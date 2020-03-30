@@ -1,0 +1,22 @@
+{
+    "name": "testTable",
+        "columns": 
+		[
+			{
+				"columnname": "id",
+				"type": "String"
+			},
+			{
+				"columnname": "name",
+				"type": "String"
+			},
+			{
+				"columnname": "Age",
+				"type": "Numeric"
+			},
+			{
+				"columnname": "Sex",
+				"type": "String"
+			}
+        ]
+}
