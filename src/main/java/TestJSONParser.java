@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class TestJSONParser {
-    final static Logger logger = Logger.getLogger(TestJSONParser.class);
+    private final static Logger logger = Logger.getLogger(TestJSONParser.class);
 
     public static void main(String[] args) throws IOException {
         String JSONFile = "testJSON.json";
@@ -47,7 +47,7 @@ public class TestJSONParser {
                     + table.getTableName()
                     + "_DDL.sql has been created succesfully");
         }catch (IOException e) {
-            e.printStackTrace();
+            logger.error("error with write to file: " + e);
         }
     }
 }
