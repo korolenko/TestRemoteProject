@@ -1,9 +1,11 @@
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+@Data
 public class Table {
     private String tableName;
     private List<HashMap<String,String>> columnList;
@@ -24,7 +26,7 @@ public class Table {
         }
     }
 
-    private String getAttributes(){
+    String getAttributes(){
         StringBuilder attributes = new StringBuilder();
         for(HashMap<String,String> collumn:columnList){
             attributes.append(collumn.get("columnname"))
