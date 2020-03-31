@@ -28,11 +28,13 @@ public class Table {
 
     String getAttributes(){
         StringBuilder attributes = new StringBuilder();
+        String prefix = "";
         for(HashMap<String,String> collumn:columnList){
+            attributes.append(prefix);
+            prefix = ", ";
             attributes.append(collumn.get("columnname"))
                     .append(" ")
-                    .append(collumn.get("type"))
-                    .append(", ");
+                    .append(collumn.get("type"));
         }
         return attributes.toString();
     }

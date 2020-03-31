@@ -28,7 +28,7 @@ public class TestJSONParser {
         Table table = objectMapper.readValue(jsonData, Table.class);
 
         //show the result
-        logger.info(JSONFile + " has been parsed succesfully:");
+        logger.info(JSONFile + " has been parsed successfully:");
         logger.info(table.toString());
 
         //read table DDL template
@@ -45,7 +45,7 @@ public class TestJSONParser {
             Files.write(Paths.get(table.getTableName() + "_DDL.sql"), content.getBytes(charset));
             logger.info("ddl file "
                     + table.getTableName()
-                    + "_DDL.sql has been created succesfully");
+                    + "_DDL.sql has been created successfully");
         }catch (IOException e) {
             logger.error("error with write to file: " + e);
         }
