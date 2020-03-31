@@ -1,0 +1,5 @@
+CREATE TABLE table_name
+(
+attributes
+FOREIGN KEY (model) REFERENCES product(model) ON DELETE CASCADE ON UPDATE CASCADE
+);
