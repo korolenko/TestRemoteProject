@@ -21,33 +21,33 @@ public class TestJSONParser {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-        //read data from json-file
-        byte[] jsonData = Files.readAllBytes(Paths.get(JSONFile));
+        try{
+            //read data from json-file
+            byte[] jsonData = Files.readAllBytes(Paths.get(JSONFile));
 
-        //write previously read data to Table class
-        Table table = objectMapper.readValue(jsonData, Table.class);
+            //write previously read data to Table class
+            Table table = objectMapper.readValue(jsonData, Table.class);
 
-        //show the result
-        logger.info(JSONFile + " has been parsed successfully:");
-        logger.info(table.toString());
+            //show the result
+            logger.info(JSONFile + " has been parsed successfully:");
+            logger.info(table.toString());
 
-        //read table DDL template
-        Path path = Paths.get(DDLTemplate);
-        Charset charset = StandardCharsets.UTF_8;
+            //read table DDL template
+            Path path = Paths.get(DDLTemplate);
+            Charset charset = StandardCharsets.UTF_8;
 
-        //replace attributes in ddl template
-        String content = new String(Files.readAllBytes(path), charset);
-        content = content.replaceAll("table_name" , table.getTableName());
-        content = content.replaceAll("attributes" , table.getAttributes());
+            //replace attributes in ddl template
+            String content = new String(Files.readAllBytes(path), charset);
+            content = content.replaceAll("table_name" , table.getTableName());
+            content = content.replaceAll("attributes" , table.getAttributes());
 
-        //create ddl file
-        try {
+            //create ddl file
             Files.write(Paths.get(table.getTableName() + "_DDL.sql"), content.getBytes(charset));
             logger.info("ddl file "
-                    + table.getTableName()
-                    + "_DDL.sql has been created successfully");
+                        + table.getTableName()
+                        + "_DDL.sql has been created successfully");
         }catch (IOException e) {
-            logger.error("error with write to file: " + e);
+            logger.error(e);
         }
     }
 }
