@@ -21,7 +21,7 @@ public class TestJSONParser {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-
+        try {
             //read data from json-file
             byte[] jsonData = Files.readAllBytes(Paths.get(JSONFile));
 
@@ -38,13 +38,16 @@ public class TestJSONParser {
 
             //replace attributes in ddl template
             String content = new String(Files.readAllBytes(path), charset);
-            content = content.replaceAll("table_name" , table.getTableName());
-            content = content.replaceAll("attributes" , table.getAttributes());
+            content = content.replaceAll("table_name", table.getTableName());
+            content = content.replaceAll("attributes", table.getAttributes());
 
             //create ddl file
             Files.write(Paths.get(table.getTableName() + "_DDL.sql"), content.getBytes(charset));
             logger.info("ddl file "
-                        + table.getTableName()
-                        + "_DDL.sql has been created successfully");
+                    + table.getTableName()
+                    + "_DDL.sql has been created successfully");
+        }catch (IOException e){
+            logger.error(e);
+        }
     }
 }
