@@ -37,11 +37,11 @@ public class Table {
 
             //if column has complicated type we use special logic
             if (columnType.size()> 1){
-                attributes.append(collumn.getType().get("dataType").toString().replace("Type",""))
+                attributes.append(columnType.get("dataType").toString().replace("Type",""))
                         .append("(")
-                        .append(collumn.getType().get("size"))
+                        .append(columnType.get("size"))
                         .append(",")
-                        .append(collumn.getType().get("scale"))
+                        .append(columnType.get("scale"))
                         .append(")");
             }
             else{
