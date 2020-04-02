@@ -14,14 +14,14 @@ public class TestJSONParser {
     private final static Logger logger = Logger.getLogger(TestJSONParser.class);
 
     public static void main(String[] args) throws IOException {
-        String JSONFile = "testJSON.json";
+        String JSONFile = "IBS_Z_CORP_CARDS.json";
         String DDLTemplate = "test_DDL_template.sql";
 
         //configure ObjectMapper
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-        try{
+
             //read data from json-file
             byte[] jsonData = Files.readAllBytes(Paths.get(JSONFile));
 
@@ -46,8 +46,5 @@ public class TestJSONParser {
             logger.info("ddl file "
                         + table.getTableName()
                         + "_DDL.sql has been created successfully");
-        }catch (IOException e) {
-            logger.error(e);
-        }
     }
 }

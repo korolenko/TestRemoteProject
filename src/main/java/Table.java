@@ -2,26 +2,26 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class Table {
     private String tableName;
-    private List<HashMap<String,String>> columnList;
+    private List<Column> columnList;
 
     Table(){
         this.columnList = new ArrayList<>();
     }
 
-    @JsonProperty("name")
+    @JsonProperty("tableName")
     private void getTableName(String name){
         this.tableName = name;
     }
 
     @JsonProperty("columns")
-    private void getColumns(List<HashMap<String,String>> columns){
-        for(HashMap<String,String> columnConfigs: columns){
+    private void getColumns(List<Column> columns){
+        for(Column columnConfigs: columns){
             this.columnList.add(columnConfigs);
         }
     }
@@ -29,12 +29,24 @@ public class Table {
     String getAttributes(){
         StringBuilder attributes = new StringBuilder();
         String prefix = "";
-        for(HashMap<String,String> collumn:columnList){
+        for(Column collumn:columnList){
             attributes.append(prefix);
             prefix = ", ";
-            attributes.append(collumn.get("columnname"))
-                    .append(" ")
-                    .append(collumn.get("type"));
+            attributes.append(collumn.getColumnName()).append(" ");
+            Map<String,Object> columnType = collumn.getType();
+
+            //if column has complicated type we use special logic
+            if (columnType.size()> 1){
+                attributes.append(collumn.getType().get("dataType").toString().replace("Type",""))
+                        .append("(")
+                        .append(collumn.getType().get("size"))
+                        .append(",")
+                        .append(collumn.getType().get("scale"))
+                        .append(")");
+            }
+            else{
+                attributes.append(columnType.get("dataType").toString().replace("Type",""));
+            }
         }
         return attributes.toString();
     }
