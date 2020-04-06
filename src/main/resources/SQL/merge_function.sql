@@ -1,8 +1,5 @@
-CREATE OR REPLACE FUNCTION public.test_merge()
-	RETURNS int4
-	LANGUAGE plpgsql
-	VOLATILE
-AS $$
+CREATE OR REPLACE FUNCTION test_merge()
+RETURNS integer AS $$
 begin
 	/*блокируем инкрементальную таблицу на запрет изменения данных в ней
 	 до момента окончания работы процедуры*/
@@ -10,49 +7,27 @@ begin
 	/*нужно ли?*/
 	LOCK TABLE public.bank_additional_merge IN ROW EXCLUSIVE MODE;
 
-	/*Апдейтим в TARGET-таблице те значения, с которыми есть связка по ключу*/
-	update
+	/*проставляем признак устаревшей записи в TARGET-таблице для тех значений, с которыми есть связка по ключу, и которые раньше были актуальными*/
+	update 
 		bank_additional_merge target
 	set
-				"age" = to_update."age",
-				job   = to_update.job,
-			  marital = to_update.marital,
-			education = to_update.education,
-			"default" = to_update."default",
-			  housing = to_update.housing,
-				 loan = to_update.loan,
-			  contact = to_update.contact,
-			  "month" = to_update."month",
-		  day_of_week = to_update.day_of_week,
-			 duration = to_update.duration,
-			 campaign = to_update.campaign,
-				pdays = to_update.pdays,
-			 previous = to_update.previous,
-			 poutcome = to_update.poutcome,
-	   "emp.var.rate" = to_update."emp.var.rate",
-	 "cons.price.idx" = to_update."cons.price.idx",
-	  "cons.conf.idx" = to_update."cons.conf.idx",
-			euribor3m = to_update.euribor3m,
-		"nr.employed" = to_update."nr.employed",
-					y = to_update.y,
-		   valid_from = to_update.valid_from,
-		   valid_to = null, -- проставляем признак актуальной записи
-	  merge_operation = to_update.merge_operation
-	from
+		valid_to = to_update.valid_from 
+	from 
 		bank_additional_inc to_update
 			/*отбираем данные из инкрементальной таблицы*/
-			where target.duration in
+			where target.duration in 
 				(
-				/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
-				select bai.duration from public.bank_additional_inc bai
-				inner join public.bank_additional_merge bam
-				on bai.duration = bam.duration
-				and bam.valid_to  is null -- нужна только действующая запись
-				and bam.valid_from <= bai.valid_to -- если в TARGET-таблице срок действия записи более свежий, чем в инкременте, то оставляем то? что уже в TARGET
+					/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
+					select bai.duration 
+					from public.bank_additional_inc bai 
+					inner join public.bank_additional_merge bam
+						on bai.duration = bam.duration
+						and bam.valid_to  is null -- нужна только действующая запись
+						and bam.valid_from <= bai.valid_to -- если в TARGET-таблице срок действия записи более свежий, чем в инкременте, то оставляем то, что уже в TARGET
 				)
 			and target.valid_to is null;
-
-	/*Инсертим новые данные в TARGET-таблицу*/
+			
+	/*Инсертим все новые инкрементальные данные в TARGET-таблицу*/
 	insert into public.bank_additional_merge
 			(
 				"age",
@@ -102,19 +77,29 @@ begin
 				ins_val."nr.employed",
 				ins_val.y,
 				ins_val.valid_from,
-				ins_val.valid_to,
+				null,
 				ins_val.merge_operation
-			from bank_additional_inc ins_val
-			/*отобрали данные на insert*/
-			where duration not in
-			(
-			/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
-			select bai.duration from public.bank_additional_inc bai
-			inner join public.bank_additional_merge bam
-			on bai.duration = bam.duration
-			and bam.valid_to  is null
-			);
-
+			from public.bank_additional_inc ins_val;
+			
+			/*оставляем в TARGET таблице только одну запись по каждому ключу активной*/
+			/*проставляем всем записям по одному ключу (кроме того у которого самое свежее значение) значение в valid_to*/
+			update public.bank_additional_inc target
+				set valid_to = b.valid_from
+				from (
+					/*отбираем самые свежие записи по каждому ключу*/
+					select * from 
+					(
+					select row_number() over(partition by duration order by valid_from desc) as rn,
+							duration,
+							valid_from
+					  from public.bank_additional_inc
+					  		
+					)a
+					where a.rn = 1
+				)b
+				where target.duration = b.duration
+					and target.valid_from <> duration.valid_from;
+			
 	return 0;
 
 	exception
@@ -123,5 +108,9 @@ begin
         RAISE INFO 'Error State:%', SQLSTATE;
         return -1;
 end;
- $$
-;
+$$
+LANGUAGE plpgsql;
+ 
+
+   
+select public.test_merge();
