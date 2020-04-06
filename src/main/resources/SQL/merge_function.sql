@@ -18,7 +18,7 @@ begin
 			where target.duration in 
 				(
 					/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
-					select bai.duration 
+					select distinct bai.duration -- если в инкремент пришло более одной записи с одинаковым ключом
 					from public.bank_additional_inc bai 
 					inner join public.bank_additional_merge bam
 						on bai.duration = bam.duration
@@ -77,7 +77,7 @@ begin
 				ins_val."nr.employed",
 				ins_val.y,
 				ins_val.valid_from,
-				null,
+				null, -- на данном этапе всем новым записям проставляется признак активной записи
 				ins_val.merge_operation
 			from public.bank_additional_inc ins_val;
 			
@@ -110,7 +110,3 @@ begin
 end;
 $$
 LANGUAGE plpgsql;
- 
-
-   
-select public.test_merge();
