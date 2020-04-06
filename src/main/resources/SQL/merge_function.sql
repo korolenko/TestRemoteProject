@@ -7,6 +7,36 @@ begin
 	/*нужно ли?*/
 	LOCK TABLE public.bank_additional_merge IN ROW EXCLUSIVE MODE;
 
+	/*создаем темповую таблицу для пометки устаревшими инкрементальных данных, если по одному ключу пришло больше одной записи*/
+	CREATE TEMPORARY TABLE to_insert
+   	(
+      		"age" numeric NULL,
+		job text NULL,
+		marital text NULL,
+		education text NULL,
+		"default" text NULL,
+		housing text NULL,
+		loan text NULL,
+		contact text NULL,
+		"month" text NULL,
+		day_of_week text NULL,
+		duration numeric NULL,
+		campaign numeric NULL,
+		pdays numeric NULL,
+		previous numeric NULL,
+		poutcome numeric NULL,
+		"emp.var.rate" numeric NULL,
+		"cons.price.idx" numeric NULL,
+		"cons.conf.idx" numeric NULL,
+		euribor3m numeric NULL,
+		"nr.employed" numeric NULL,
+		y text NULL,
+		valid_from timestamp NULL,
+		valid_to timestamp NULL,
+		merge_operation text NULL
+   	) 
+   	ON COMMIT DELETE ROWS;
+
 	/*проставляем признак устаревшей записи в TARGET-таблице для тех значений, с которыми есть связка по ключу, и которые раньше были актуальными*/
 	update 
 		bank_additional_merge target
@@ -27,8 +57,8 @@ begin
 				)
 			and target.valid_to is null;
 			
-	/*Инсертим все новые инкрементальные данные в TARGET-таблицу*/
-	insert into public.bank_additional_merge
+	/*Инсертим все новые инкрементальные данные в темп-таблицу*/
+	insert into to_insert
 			(
 				"age",
 				job,
@@ -81,9 +111,9 @@ begin
 				ins_val.merge_operation
 			from public.bank_additional_inc ins_val;
 			
-			/*оставляем в TARGET таблице только одну запись по каждому ключу активной*/
+			/*оставляем в темп таблице только одну запись по каждому ключу активной*/
 			/*проставляем всем записям по одному ключу (кроме того у которого самое свежее значение) значение в valid_to*/
-			update public.bank_additional_inc target
+			update to_insert target
 				set valid_to = b.valid_from
 				from (
 					/*отбираем самые свежие записи по каждому ключу*/
@@ -92,13 +122,17 @@ begin
 					select row_number() over(partition by duration order by valid_from desc) as rn,
 							duration,
 							valid_from
-					  from public.bank_additional_inc
+					  from to_insert
 					  		
 					)a
 					where a.rn = 1
 				)b
 				where target.duration = b.duration
-					and target.valid_from <> duration.valid_from;
+					and target.valid_from <> b.valid_from;
+	
+	/*финальный инсерт обработанного инкремента в TARGET таблицу*/
+	insert into public.bank_additional_merge 
+	select * from to_insert;
 			
 	return 0;
 
