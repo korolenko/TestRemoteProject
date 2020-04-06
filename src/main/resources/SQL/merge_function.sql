@@ -1,91 +1,119 @@
-CREATE OR REPLACE FUNCTION test_merge()
-RETURNS integer AS $$
-DECLARE
-	inc_cursor refcursor;
-	inc_row RECORD;
+CREATE OR REPLACE FUNCTION public.test_merge()
+	RETURNS int4
+	LANGUAGE plpgsql
+	VOLATILE
+AS $$
 begin
 	/*блокируем инкрементальную таблицу на запрет изменения данных в ней
 	 до момента окончания работы процедуры*/
 	LOCK TABLE public.bank_additional_inc IN ROW EXCLUSIVE MODE;
 	/*нужно ли?*/
-	LOCK TABLE public.bank_additional IN ROW EXCLUSIVE MODE;
+	LOCK TABLE public.bank_additional_merge IN ROW EXCLUSIVE MODE;
 
-	OPEN inc_cursor FOR SELECT * FROM public.bank_additional_inc bai;
+	/*Апдейтим в TARGET-таблице те значения, с которыми есть связка по ключу*/
+	update
+		bank_additional_merge target
+	set
+				"age" = to_update."age",
+				job   = to_update.job,
+			  marital = to_update.marital,
+			education = to_update.education,
+			"default" = to_update."default",
+			  housing = to_update.housing,
+				 loan = to_update.loan,
+			  contact = to_update.contact,
+			  "month" = to_update."month",
+		  day_of_week = to_update.day_of_week,
+			 duration = to_update.duration,
+			 campaign = to_update.campaign,
+				pdays = to_update.pdays,
+			 previous = to_update.previous,
+			 poutcome = to_update.poutcome,
+	   "emp.var.rate" = to_update."emp.var.rate",
+	 "cons.price.idx" = to_update."cons.price.idx",
+	  "cons.conf.idx" = to_update."cons.conf.idx",
+			euribor3m = to_update.euribor3m,
+		"nr.employed" = to_update."nr.employed",
+					y = to_update.y,
+		   valid_from = to_update.valid_from,
+		   valid_to = null, -- проставляем признак актуальной записи
+	  merge_operation = to_update.merge_operation
+	from
+		bank_additional_inc to_update
+			/*отбираем данные из инкрементальной таблицы*/
+			where target.duration in
+				(
+				/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
+				select bai.duration from public.bank_additional_inc bai
+				inner join public.bank_additional_merge bam
+				on bai.duration = bam.duration
+				and bam.valid_to  is null -- нужна только действующая запись
+				and bam.valid_from <= bai.valid_to -- если в TARGET-таблице срок действия записи более свежий, чем в инкременте, то оставляем то? что уже в TARGET
+				)
+			and target.valid_to is null;
 
-	loop
-		fetch inc_cursor into inc_row;
-		EXIT WHEN NOT FOUND;
-
-		/*поиск в TARGET таблице действующего значения с ключем из инкремента
-		 если такое имеется, делаем его неактивным, путем установления в поле valid_to
-		 значения из поля valid_from строки инкремента, в том случае,
-		 если у строки в TARGET значение valid_from меньше чем в строке инкремента*/
-		update bank_additional
-			set valid_to = inc_row.valid_from
-		where valid_to  is null
-			and duration = inc_row.duration
-			and valid_from <= inc_row.valid_from;
-
-		raise notice 'the row was marked as inactive, duration: %', inc_row.duration;
-
-		/*записываем в таргет инкрементальную запись*/
-		insert into public.bank_additional
-		(
-			"age",
-			job,
-			marital,
-			education,
-			"default",
-			housing,
-			loan,
-			contact,
-			"month",
-			day_of_week,
-			duration,
-			campaign,
-			pdays,
-			previous,
-			poutcome,
-			"emp.var.rate",
-			"cons.price.idx",
-			"cons.conf.idx",
-			euribor3m,
-			"nr.employed",
-			y,
-			valid_from,
-			valid_to,
-			merge_operation
-		)
-		values(
-			inc_row."age",
-			inc_row.job,
-			inc_row.marital,
-			inc_row.education,
-			inc_row."default",
-			inc_row.housing,
-			inc_row.loan,
-			inc_row.contact,
-			inc_row."month",
-			inc_row.day_of_week,
-			inc_row.duration,
-			inc_row.campaign,
-			inc_row.pdays,
-			inc_row.previous,
-			inc_row.poutcome,
-			inc_row."emp.var.rate",
-			inc_row."cons.price.idx",
-			inc_row."cons.conf.idx",
-			inc_row.euribor3m,
-			inc_row."nr.employed",
-			inc_row.y,
-			inc_row.valid_from,
-			inc_row.valid_to,
-			inc_row.merge_operation
-		);
-		raise notice 'the inc row was inserted, duration: %', inc_row.duration;
-	end loop;
-
-	CLOSE inc_cursor;
+	/*Инсертим новые данные в TARGET-таблицу*/
+	insert into public.bank_additional_merge
+			(
+				"age",
+				job,
+				marital,
+				education,
+				"default",
+				housing,
+				loan,
+				contact,
+				"month",
+				day_of_week,
+				duration,
+				campaign,
+				pdays,
+				previous,
+				poutcome,
+				"emp.var.rate",
+				"cons.price.idx",
+				"cons.conf.idx",
+				euribor3m,
+				"nr.employed",
+				y,
+				valid_from,
+				valid_to,
+				merge_operation
+			)
+		select ins_val."age",
+				ins_val.job,
+				ins_val.marital,
+				ins_val.education,
+				ins_val."default",
+				ins_val.housing,
+				ins_val.loan,
+				ins_val.contact,
+				ins_val."month",
+				ins_val.day_of_week,
+				ins_val.duration,
+				ins_val.campaign,
+				ins_val.pdays,
+				ins_val.previous,
+				ins_val.poutcome,
+				ins_val."emp.var.rate",
+				ins_val."cons.price.idx",
+				ins_val."cons.conf.idx",
+				ins_val.euribor3m,
+				ins_val."nr.employed",
+				ins_val.y,
+				ins_val.valid_from,
+				ins_val.valid_to,
+				ins_val.merge_operation
+			from bank_additional_inc ins_val
+			/*отобрали данные на insert*/
+			where duration not in
+			(
+			/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
+			select bai.duration from public.bank_additional_inc bai
+			inner join public.bank_additional_merge bam
+			on bai.duration = bam.duration
+			and bam.valid_to  is null
+			);
 
 	return 0;
 
@@ -95,5 +123,5 @@ begin
         RAISE INFO 'Error State:%', SQLSTATE;
         return -1;
 end;
-$$
-LANGUAGE plpgsql;
+ $$
+;
