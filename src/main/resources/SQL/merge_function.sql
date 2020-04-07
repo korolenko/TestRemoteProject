@@ -8,9 +8,9 @@ begin
 	LOCK TABLE public.bank_additional_merge IN ROW EXCLUSIVE MODE;
 
 	/*создаем темповую таблицу для пометки устаревшими инкрементальных данных, если по одному ключу пришло больше одной записи*/
-	CREATE TEMPORARY TABLE to_insert
+	CREATE TEMPORARY TABLE to_insert2
    	(
-      		"age" numeric NULL,
+      	"age" numeric NULL,
 		job text NULL,
 		marital text NULL,
 		education text NULL,
@@ -35,8 +35,9 @@ begin
 		valid_to timestamp NULL,
 		merge_operation text NULL
    	) 
-   	ON COMMIT DELETE ROWS;
-
+   	ON COMMIT DROP;
+	
+   raise notice 'temp table created';
 	/*проставляем признак устаревшей записи в TARGET-таблице для тех значений, с которыми есть связка по ключу, и которые раньше были актуальными*/
 	update 
 		bank_additional_merge target
@@ -45,20 +46,25 @@ begin
 	from 
 		bank_additional_inc to_update
 			/*отбираем данные из инкрементальной таблицы*/
-			where target.duration in 
+			inner join
 				(
 					/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
-					select distinct bai.duration -- если в инкремент пришло более одной записи с одинаковым ключом
+					select  bai.duration, bai.valid_from ,
+							row_number() over(partition by bai.duration order by bai.valid_from desc) as rn -- если в инкремент пришло более одной записи с одинаковым ключом
 					from public.bank_additional_inc bai 
 					inner join public.bank_additional_merge bam
 						on bai.duration = bam.duration
 						and bam.valid_to  is null -- нужна только действующая запись
-						and bam.valid_from <= bai.valid_to -- если в TARGET-таблице срок действия записи более свежий, чем в инкременте, то оставляем то, что уже в TARGET
-				)
-			and target.valid_to is null;
-			
+						and bam.valid_from <= bai.valid_from -- если в TARGET-таблице срок действия записи более свежий, чем в инкременте, то оставляем то, что уже в TARGET
+				)sb
+			on to_update.duration = sb.duration and to_update.valid_from  = sb.valid_from and sb.rn = 1
+			where target.valid_to is null
+			and target.duration = to_update.duration;
+		
+	raise notice '1 update';
+
 	/*Инсертим все новые инкрементальные данные в темп-таблицу*/
-	insert into to_insert
+	insert into to_insert2
 			(
 				"age",
 				job,
@@ -111,9 +117,11 @@ begin
 				ins_val.merge_operation
 			from public.bank_additional_inc ins_val;
 			
+		raise notice 'temp insert';
+	
 			/*оставляем в темп таблице только одну запись по каждому ключу активной*/
 			/*проставляем всем записям по одному ключу (кроме того у которого самое свежее значение) значение в valid_to*/
-			update to_insert target
+			update to_insert2 target
 				set valid_to = b.valid_from
 				from (
 					/*отбираем самые свежие записи по каждому ключу*/
@@ -122,18 +130,21 @@ begin
 					select row_number() over(partition by duration order by valid_from desc) as rn,
 							duration,
 							valid_from
-					  from to_insert
+					  from to_insert2
 					  		
 					)a
 					where a.rn = 1
 				)b
 				where target.duration = b.duration
 					and target.valid_from <> b.valid_from;
-	
+				
+	raise notice '2 update';
 	/*финальный инсерт обработанного инкремента в TARGET таблицу*/
 	insert into public.bank_additional_merge 
-	select * from to_insert;
-			
+	select * from to_insert2;
+	
+	raise notice '2 insert';
+
 	return 0;
 
 	exception
