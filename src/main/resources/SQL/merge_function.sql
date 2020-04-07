@@ -61,7 +61,7 @@ begin
 			where target.valid_to is null
 			and target.duration = to_update.duration;
 		
-	raise notice '1 update';
+	raise notice 'target table update done';
 
 	/*Инсертим все новые инкрементальные данные в темп-таблицу*/
 	insert into to_insert2
@@ -118,6 +118,30 @@ begin
 			from public.bank_additional_inc ins_val;
 			
 		raise notice 'temp insert';
+	
+		/*не уверен что нужен этот кейс но на всякий добавил*/
+		/*проставляем признак устаревшей записи в temp-таблице для тех значений, с которыми есть связка по ключу, но valid_from которых старше чем в target*/
+		update 
+			to_insert2 target
+		set
+			valid_to = sb.valid_from 
+		from 
+			bank_additional_inc to_update
+				/*отбираем данные из инкрементальной таблицы*/
+				inner join
+					(
+						/*находим записи, которые совпадают с тем, что уже есть в Target таблице*/
+						select  bai.duration, bam.valid_from ,
+								row_number() over(partition by bai.duration order by bai.valid_from desc) as rn -- если в инкремент пришло более одной записи с одинаковым ключом
+						from public.bank_additional_inc bai 
+						inner join public.bank_additional_merge bam
+							on bai.duration = bam.duration
+							and bam.valid_to  is null -- нужна только действующая запись
+							and bam.valid_from >= bai.valid_from -- если в TARGET-таблице срок действия записи более свежий, чем в инкременте, то оставляем то, что уже в TARGET
+					)sb
+				on to_update.duration = sb.duration and to_update.valid_from < sb.valid_from and sb.rn = 1
+				where target.valid_to is null
+				and target.duration = to_update.duration;
 	
 			/*оставляем в темп таблице только одну запись по каждому ключу активной*/
 			/*проставляем всем записям по одному ключу (кроме того у которого самое свежее значение) значение в valid_to*/
