@@ -120,19 +120,28 @@ begin
 					ins_val.new_valid_to,
 					ins_val.merge_operation
 	from (
-	select 
-		lead(a.valid_from, 1) over (partition by a.duration order by a.valid_from) as new_valid_to, -- для корректного проставления срока действия записи
-		* 
-		from (
-		select * from bank_additional_inc bai
-		union
-		select  * from bank_additional_hist 
-		where duration in (select distinct duration from bank_additional_inc) /*2 последних условия, чтобы не тянуть все что уже есть в истории*/
-		and valid_from >= (select min(valid_from) from bank_additional_inc)  /*но при этом корректно обработать ситуацию, когда в INC есть данные по одному*/
-		)a																	/*ключу одновременно и старше и свежее того, что есть в TARGET*/
-	)ins_val
-	where new_valid_to is not null
-	and ins_val.valid_to is null;
+		select 
+			lead(a.valid_from, 1) over (partition by a.duration order by a.valid_from) as new_valid_to,
+			* 
+			from (
+			select * from bank_additional_inc bai
+			union
+			select  * from bank_additional_merge 
+			where duration in (select distinct duration from bank_additional_inc) /*если в INC пришла устаревшая запись*/
+			and valid_from >= (select min(valid_from) from bank_additional_inc) 
+			union
+			select  * from bank_additional_hist 
+			where duration in (select distinct duration from bank_additional_inc) /*2 последних условия, чтобы не тянуть все что уже есть в истории*/
+			and valid_from >= (select min(valid_from) from bank_additional_inc)  /*но при этом корректно обработать ситуацию, когда в INC есть данные по одному*/
+			)a																	/*ключу одновременно и старше и свежее того, что есть в TARGET*/
+		)ins_val
+	where /*new_valid_to is not null
+	and ins_val.valid_to is null
+	and */
+	not exists (select 1 from bank_additional_hist bah
+	where bah.duration = ins_val.duration
+		and bah.valid_from = ins_val.valid_from);
+		--and bah.valid_to = new_valid_to);
 	
 	/*записываем в TARGET оставшиеся данные из INC, по которым нет связки по ключу*/
 	insert into bank_additional_merge 
@@ -151,5 +160,3 @@ begin
 end;
 $$
 LANGUAGE plpgsql;
-
-
